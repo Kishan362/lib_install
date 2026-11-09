@@ -285,7 +285,7 @@ smart_install() {
 }
 
 # -----------------------------------------------------------------------------
-# 6. Core Packages, Polkit, VPN, GTK Themes & Utilities (With Auto-Validation)
+# 6. Core Packages, Polkit, VPN, GTK Themes & Utilities
 # -----------------------------------------------------------------------------
 log_info "Resolving conflicts and preparing package lists..."
 
@@ -300,7 +300,6 @@ else
     ROFI_PKG="rofi-wayland"
 fi
 
-# Base AUR packages list
 EXTRA_PACKAGES=(
     bibata-cursor-theme-bin
     arc-gtk-theme
@@ -375,7 +374,7 @@ OFFICIAL_PACKAGES=(
     # --- Desktop Integration ---
     thunar thunar-volman tumbler gvfs gvfs-mtp gvfs-smb nautilus file-roller gnome-keyring libsecret seahorse
 
-    # --- CLI & 43PR Dotfiles Stack ---
+    # --- CLI & 43PR Dotfiles Stack (includes awww daemon) ---
     zsh zsh-completions zsh-autosuggestions zsh-syntax-highlighting starship eza cava matugen awww "${ROFI_PKG}" kitty fastfetch btop ncdu cmatrix jq glib2 gsettings-desktop-schemas imagemagick ffmpeg ffmpegthumbnailer mpv libnotify brightnessctl wf-recorder gammastep 7zip unzip unrar
 
     # --- Fonts ---
@@ -418,8 +417,7 @@ if [[ "$GAME_CHOICE" == "1" ]]; then
     )
 fi
 
-# AUTO-VALIDATION FILTER:
-# Verifies each package exists in official/CachyOS repos. If missing, queues it to AUR.
+# AUTO-VALIDATION FILTER (Prevents missing-package aborts)
 log_info "Validating packages against active repositories..."
 VALID_OFFICIAL_PACKAGES=()
 for pkg in "${OFFICIAL_PACKAGES[@]}"; do
@@ -435,9 +433,9 @@ log_info "Installing official repository packages..."
 run_root pacman -S --needed --noconfirm "${VALID_OFFICIAL_PACKAGES[@]}"
 
 # -----------------------------------------------------------------------------
-# 7. Dual Polkit Agents, Screenshots & Keybindings (Hyprland & Niri)
+# 7. Autostart Daemons (awww-daemon, hyprpolkitagent) & Shortcuts
 # -----------------------------------------------------------------------------
-log_info "Configuring Polkit agents, clipboard daemons, and application shortcuts..."
+log_info "Configuring autostart daemons (awww-daemon, hyprpolkitagent) and keybindings..."
 
 run_root tee /usr/local/bin/screenshot > /dev/null << 'EOF'
 #!/usr/bin/env bash
@@ -470,18 +468,15 @@ run_root mkdir -p "$HYPR_CONFIG_DIR"
 
 if [[ -f "$HYPR_LUA_FILE" ]] || [[ ! -f "$HYPR_CONF_FILE" ]]; then
     [[ ! -f "$HYPR_LUA_FILE" ]] && run_root touch "$HYPR_LUA_FILE"
-    if ! grep -q "hyprpolkitagent" "$HYPR_LUA_FILE"; then
+    if ! grep -q "awww-daemon" "$HYPR_LUA_FILE"; then
         cat << 'EOF' | run_root tee -a "$HYPR_LUA_FILE" > /dev/null
 
--- Autostart Both Polkit Agents (Guaranteed Authentication)
+-- Autostart Daemons (Polkit, Wallpaper & Clipboard)
 hl.exec_cmd("/usr/lib/hyprpolkitagent/hyprpolkitagent")
 hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
-
--- Clipboard Daemons
+hl.exec_cmd("awww-daemon")
 hl.exec_cmd("wl-paste --type text --watch cliphist store")
 hl.exec_cmd("wl-paste --type image --watch cliphist store")
-
--- Cursor Theme
 hl.exec_cmd("hyprctl setcursor Bibata-Modern-Classic 24")
 
 -- Shortcuts: Screenshots, Clipboard, Apps
@@ -495,14 +490,13 @@ EOF
 fi
 
 if [[ -f "$HYPR_CONF_FILE" ]]; then
-    if ! grep -q "cliphist" "$HYPR_CONF_FILE"; then
+    if ! grep -q "awww-daemon" "$HYPR_CONF_FILE"; then
         cat << 'EOF' | run_root tee -a "$HYPR_CONF_FILE" > /dev/null
 
-# Autostart Both Polkit Agents (Guaranteed Authentication)
+# Autostart Daemons
 exec-once = /usr/lib/hyprpolkitagent/hyprpolkitagent
 exec-once = /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
-
-# Clipboard Daemons & Cursor
+exec-once = awww-daemon
 exec-once = wl-paste --type text --watch cliphist store
 exec-once = wl-paste --type image --watch cliphist store
 exec-once = hyprctl setcursor Bibata-Modern-Classic 24
@@ -526,14 +520,13 @@ if [[ ! -f "$NIRI_CONFIG_FILE" ]]; then
     run_root touch "$NIRI_CONFIG_FILE"
 fi
 
-if ! grep -q "cliphist" "$NIRI_CONFIG_FILE"; then
+if ! grep -q "awww-daemon" "$NIRI_CONFIG_FILE"; then
     cat << 'EOF' | run_root tee -a "$NIRI_CONFIG_FILE" > /dev/null
 
-// Autostart Both Polkit Agents (Guaranteed Authentication)
+// Autostart Daemons (Polkit, Wallpaper & Clipboard)
 spawn-at-startup "/usr/lib/hyprpolkitagent/hyprpolkitagent"
 spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
-
-// Clipboard Daemons
+spawn-at-startup "awww-daemon"
 spawn-at-startup "wl-paste" "--type" "text" "--watch" "cliphist" "store"
 spawn-at-startup "wl-paste" "--type" "image" "--watch" "cliphist" "store"
 
@@ -557,8 +550,8 @@ fi
 USER_GID=$(id -g "$TARGET_USER")
 run_root chown -R "${TARGET_USER}:${USER_GID}" "${USER_HOME}/.config"
 
-# --- 3. Systemd User Units for Both Polkit Agents ---
-run_root mkdir -p /etc/systemd/user
+# --- 3. Systemd User Units & Global Wants ---
+run_root mkdir -p /etc/systemd/user /etc/systemd/user/graphical-session.target.wants
 
 run_root tee /etc/systemd/user/hyprpolkitagent.service > /dev/null << 'EOF'
 [Unit]
@@ -577,6 +570,9 @@ TimeoutStopSec=5sec
 WantedBy=graphical-session.target
 EOF
 
+# Enable hyprpolkitagent at system-wide user level
+run_root ln -sf /etc/systemd/user/hyprpolkitagent.service /etc/systemd/user/graphical-session.target.wants/hyprpolkitagent.service
+
 run_root tee /etc/systemd/user/polkit-gnome-authentication-agent-1.service > /dev/null << 'EOF'
 [Unit]
 Description=GNOME Polkit Authentication Agent
@@ -594,7 +590,7 @@ TimeoutStopSec=5sec
 WantedBy=graphical-session.target
 EOF
 
-# --- 4. XDG Autostart Desktop Entries for Both Agents ---
+# --- 4. XDG Autostart Desktop Entries ---
 run_root mkdir -p /etc/xdg/autostart
 
 run_root tee /etc/xdg/autostart/hyprpolkitagent.desktop > /dev/null << 'EOF'
@@ -946,7 +942,8 @@ log_success "================================================================="
 log_success " Bootstrap Complete on ${DISTRO_NAME}!"
 log_success " Configured Account: ${TARGET_USER}"
 log_success " SDDM Theme: Pixie (xCaptaiN09/pixie-sddm) Activated with 755 permissions"
-log_success " Polkit Agents: hyprpolkitagent + polkit-gnome (Running & Autostarting)"
+log_success " Polkit Agents: hyprpolkitagent + polkit-gnome (Enabled & Autostarting)"
+log_success " Wallpaper Daemon: awww-daemon configured in hyprland.lua & config.kdl"
 log_success " Cursors: Bibata Modern Classic (System-wide default)"
 log_success " Themes: Orchis, Materia, Adapta, Nordic, Catppuccin, Dracula, Arc"
 log_success " Compositor Configs:"
