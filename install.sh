@@ -833,15 +833,19 @@ log_info "Installing and configuring Pixie SDDM theme (xCaptaiN09/pixie-sddm)...
 THEME_DIR="/usr/share/sddm/themes/pixie"
 run_root mkdir -p "/usr/share/sddm/themes"
 
-TMP_THEME_DIR=$(mktemp -d)
-if git clone --depth=1 https://github.com/xCaptaiN09/pixie-sddm.git "$TMP_THEME_DIR"; then
-    run_root rm -rf "$THEME_DIR"
-    run_root cp -r "$TMP_THEME_DIR" "$THEME_DIR"
-    rm -rf "$TMP_THEME_DIR"
-    log_success "Pixie SDDM theme installed to ${THEME_DIR}."
+run_root rm -rf "$THEME_DIR" "/usr/share/sddm/pixie"
+if git clone --depth=1 https://github.com/xCaptaiN09/pixie-sddm.git "$THEME_DIR"; then
+    # Create fallback symlink in case SDDM searches /usr/share/sddm/pixie
+    run_root ln -sf "$THEME_DIR" "/usr/share/sddm/pixie"
+
+    # Enforce open read/execute permissions for the unprivileged 'sddm' daemon user
+    run_root chmod -R 755 "$THEME_DIR"
+    run_root chmod 755 /usr/share/sddm /usr/share/sddm/themes
+    log_success "Pixie SDDM theme installed with permissions (755)."
 else
-    log_warn "Failed to clone Pixie SDDM theme directly. Falling back to AUR..."
+    log_warn "Failed to clone Pixie SDDM directly. Falling back to AUR..."
     smart_install "pixie-sddm-git" || log_warn "Could not install pixie-sddm-git"
+    run_root chmod -R 755 "$THEME_DIR" 2>/dev/null || true
 fi
 
 run_root mkdir -p /etc/sddm.conf.d
@@ -852,6 +856,7 @@ GreeterEnvironment=QT_WAYLAND_SHELL_INTEGRATION=layer-shell
 
 [Theme]
 Current=pixie
+ThemeDir=/usr/share/sddm/themes
 EOF
 
 for pam_file in /etc/pam.d/login /etc/pam.d/sddm; do
