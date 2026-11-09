@@ -285,7 +285,7 @@ smart_install() {
 }
 
 # -----------------------------------------------------------------------------
-# 6. Core Packages, Polkit, VPN, GTK Themes & Utilities
+# 6. Core Packages, Polkit, VPN, GTK Themes & Utilities (With Auto-Validation)
 # -----------------------------------------------------------------------------
 log_info "Resolving conflicts and preparing package lists..."
 
@@ -299,6 +299,22 @@ if $IS_CACHYOS; then
 else
     ROFI_PKG="rofi-wayland"
 fi
+
+# Base AUR packages list
+EXTRA_PACKAGES=(
+    bibata-cursor-theme-bin
+    arc-gtk-theme
+    nordic-theme
+    catppuccin-gtk-theme-mocha
+    dracula-gtk-theme
+    msi-ec-dkms-git
+    quickshell
+    mpvpaper
+    zen-browser-bin
+    helium-browser-bin
+    visual-studio-code-bin
+    opencode-bin
+)
 
 OFFICIAL_PACKAGES=(
     # --- Microcode & Sound Open Firmware (Alder Lake) ---
@@ -319,7 +335,7 @@ OFFICIAL_PACKAGES=(
     # --- Hardware & Filesystem Tools ---
     ntfs-3g dosfstools exfatprogs pciutils lm_sensors dmidecode openrgb udisks2 udiskie zram-generator
 
-    # --- Polkit Authentication Agents (Both Modern Hyprland and GNOME Agents) ---
+    # --- Polkit Authentication Agents ---
     polkit
     hyprpolkitagent
     polkit-gnome
@@ -344,11 +360,11 @@ OFFICIAL_PACKAGES=(
     # --- Display Manager & Session Essentials (Qt6 dependencies for Pixie SDDM) ---
     upower sddm qt6-wayland qt6-svg qt6-multimedia qt6-declarative qt6-5compat xdg-user-dirs xdg-utils
 
-    # --- Comprehensive GTK Themes & Icon Suites ---
+    # --- Official Repository GTK Themes & Icon Suites ---
     adw-gtk-theme
+    orchis-theme
     materia-gtk-theme
     adapta-gtk-theme
-    arc-gtk-theme
     breeze-gtk
     gnome-themes-extra
     papirus-icon-theme
@@ -402,15 +418,27 @@ if [[ "$GAME_CHOICE" == "1" ]]; then
     )
 fi
 
+# AUTO-VALIDATION FILTER:
+# Verifies each package exists in official/CachyOS repos. If missing, queues it to AUR.
+log_info "Validating packages against active repositories..."
+VALID_OFFICIAL_PACKAGES=()
+for pkg in "${OFFICIAL_PACKAGES[@]}"; do
+    if pacman -Si "$pkg" &>/dev/null; then
+        VALID_OFFICIAL_PACKAGES+=("$pkg")
+    else
+        log_warn "Package '$pkg' is not in official repositories. Queuing for AUR installation..."
+        EXTRA_PACKAGES+=("$pkg")
+    fi
+done
+
 log_info "Installing official repository packages..."
-run_root pacman -S --needed --noconfirm "${OFFICIAL_PACKAGES[@]}"
+run_root pacman -S --needed --noconfirm "${VALID_OFFICIAL_PACKAGES[@]}"
 
 # -----------------------------------------------------------------------------
 # 7. Dual Polkit Agents, Screenshots & Keybindings (Hyprland & Niri)
 # -----------------------------------------------------------------------------
 log_info "Configuring Polkit agents, clipboard daemons, and application shortcuts..."
 
-# Universal screenshot helper
 run_root tee /usr/local/bin/screenshot > /dev/null << 'EOF'
 #!/usr/bin/env bash
 mkdir -p "$HOME/Pictures/Screenshots"
@@ -532,7 +560,6 @@ run_root chown -R "${TARGET_USER}:${USER_GID}" "${USER_HOME}/.config"
 # --- 3. Systemd User Units for Both Polkit Agents ---
 run_root mkdir -p /etc/systemd/user
 
-# Hyprpolkitagent service
 run_root tee /etc/systemd/user/hyprpolkitagent.service > /dev/null << 'EOF'
 [Unit]
 Description=Hyprland Polkit Authentication Agent
@@ -550,7 +577,6 @@ TimeoutStopSec=5sec
 WantedBy=graphical-session.target
 EOF
 
-# Polkit-GNOME service fallback
 run_root tee /etc/systemd/user/polkit-gnome-authentication-agent-1.service > /dev/null << 'EOF'
 [Unit]
 Description=GNOME Polkit Authentication Agent
@@ -634,26 +660,11 @@ fi
 # -----------------------------------------------------------------------------
 # 9. AUR Packages (Bibata Cursors, Extra GTK Themes, Browsers)
 # -----------------------------------------------------------------------------
-log_info "Installing Bibata cursors, GTK themes & browser ecosystem..."
-
-EXTRA_PACKAGES=(
-    bibata-cursor-theme-bin
-    orchis-theme
-    nordic-theme
-    catppuccin-gtk-theme-mocha
-    dracula-gtk-theme
-    msi-ec-dkms-git
-    quickshell
-    mpvpaper
-    zen-browser-bin
-    helium-browser-bin
-    visual-studio-code-bin
-    opencode-bin
-)
+log_info "Installing Bibata cursors, GTK themes & browser ecosystem from AUR..."
 
 for pkg in "${EXTRA_PACKAGES[@]}"; do
     log_info "Processing: $pkg"
-    smart_install "$pkg" || log_warn "Failed to install $pkg"
+    smart_install "$pkg" || log_warn "Failed to install $pkg via AUR (continuing...)"
 done
 
 # -----------------------------------------------------------------------------
@@ -765,7 +776,7 @@ XCURSOR_THEME=Bibata-Modern-Classic
 XCURSOR_SIZE=24
 EOF
 
-# Configure user GSettings for cursor & fonts
+# Configure user GSettings for cursor
 run_user gsettings set org.gnome.desktop.interface cursor-theme 'Bibata-Modern-Classic' 2>/dev/null || true
 run_user gsettings set org.gnome.desktop.interface cursor-size 24 2>/dev/null || true
 
@@ -835,10 +846,7 @@ run_root mkdir -p "/usr/share/sddm/themes"
 
 run_root rm -rf "$THEME_DIR" "/usr/share/sddm/pixie"
 if git clone --depth=1 https://github.com/xCaptaiN09/pixie-sddm.git "$THEME_DIR"; then
-    # Create fallback symlink in case SDDM searches /usr/share/sddm/pixie
     run_root ln -sf "$THEME_DIR" "/usr/share/sddm/pixie"
-
-    # Enforce open read/execute permissions for the unprivileged 'sddm' daemon user
     run_root chmod -R 755 "$THEME_DIR"
     run_root chmod 755 /usr/share/sddm /usr/share/sddm/themes
     log_success "Pixie SDDM theme installed with permissions (755)."
@@ -937,10 +945,10 @@ run_root chmod 0440 /etc/sudoers.d/10-wheel
 log_success "================================================================="
 log_success " Bootstrap Complete on ${DISTRO_NAME}!"
 log_success " Configured Account: ${TARGET_USER}"
-log_success " SDDM Theme: Pixie (xCaptaiN09/pixie-sddm) Activated"
+log_success " SDDM Theme: Pixie (xCaptaiN09/pixie-sddm) Activated with 755 permissions"
 log_success " Polkit Agents: hyprpolkitagent + polkit-gnome (Running & Autostarting)"
 log_success " Cursors: Bibata Modern Classic (System-wide default)"
-log_success " Themes: Adwaita, Orchis, Materia, Nordic, Catppuccin, Dracula"
+log_success " Themes: Orchis, Materia, Adapta, Nordic, Catppuccin, Dracula, Arc"
 log_success " Compositor Configs:"
 log_success "   • Hyprland: Modern Lua API (hyprland.lua) & hyprland.conf"
 log_success "   • Niri: KDL Configuration (config.kdl)"
