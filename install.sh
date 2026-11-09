@@ -2,7 +2,7 @@
 # =============================================================================
 # Universal Arch Linux & CachyOS Bootstrap & Installer
 # Target Hardware: MSI Thin GF63 12VE (Alder Lake + RTX 4050/3050)
-# Desktop Ecosystem: Niri / Hyprland (Lua) + Quickshell + Pixie SDDM + 43PR
+# Desktop Ecosystem: Niri / Hyprland (Lua) + Pixie SDDM + Bibata + GTK Themes
 # =============================================================================
 set -euo pipefail
 
@@ -285,7 +285,7 @@ smart_install() {
 }
 
 # -----------------------------------------------------------------------------
-# 6. Core Packages, Polkit, VPN & Utilities
+# 6. Core Packages, Polkit, VPN, GTK Themes & Utilities
 # -----------------------------------------------------------------------------
 log_info "Resolving conflicts and preparing package lists..."
 
@@ -319,7 +319,7 @@ OFFICIAL_PACKAGES=(
     # --- Hardware & Filesystem Tools ---
     ntfs-3g dosfstools exfatprogs pciutils lm_sensors dmidecode openrgb udisks2 udiskie zram-generator
 
-    # --- Polkit Authentication Agents ---
+    # --- Polkit Authentication Agents (Both Modern Hyprland and GNOME Agents) ---
     polkit
     hyprpolkitagent
     polkit-gnome
@@ -344,8 +344,20 @@ OFFICIAL_PACKAGES=(
     # --- Display Manager & Session Essentials (Qt6 dependencies for Pixie SDDM) ---
     upower sddm qt6-wayland qt6-svg qt6-multimedia qt6-declarative qt6-5compat xdg-user-dirs xdg-utils
 
-    # --- GTK Desktop Integration ---
-    thunar thunar-volman tumbler gvfs gvfs-mtp gvfs-smb nautilus file-roller gnome-keyring libsecret seahorse adw-gtk-theme papirus-icon-theme gnome-themes-extra nwg-look zenity
+    # --- Comprehensive GTK Themes & Icon Suites ---
+    adw-gtk-theme
+    materia-gtk-theme
+    adapta-gtk-theme
+    arc-gtk-theme
+    breeze-gtk
+    gnome-themes-extra
+    papirus-icon-theme
+    tela-circle-icon-theme-all
+    nwg-look
+    zenity
+
+    # --- Desktop Integration ---
+    thunar thunar-volman tumbler gvfs gvfs-mtp gvfs-smb nautilus file-roller gnome-keyring libsecret seahorse
 
     # --- CLI & 43PR Dotfiles Stack ---
     zsh zsh-completions zsh-autosuggestions zsh-syntax-highlighting starship eza cava matugen awww "${ROFI_PKG}" kitty fastfetch btop ncdu cmatrix jq glib2 gsettings-desktop-schemas imagemagick ffmpeg ffmpegthumbnailer mpv libnotify brightnessctl wf-recorder gammastep 7zip unzip unrar
@@ -394,11 +406,11 @@ log_info "Installing official repository packages..."
 run_root pacman -S --needed --noconfirm "${OFFICIAL_PACKAGES[@]}"
 
 # -----------------------------------------------------------------------------
-# 7. Screenshot Wrapper, Clipboard & Keybindings (Lua for Hyprland & KDL for Niri)
+# 7. Dual Polkit Agents, Screenshots & Keybindings (Hyprland & Niri)
 # -----------------------------------------------------------------------------
-log_info "Configuring screenshot, clipboard, and application shortcuts..."
+log_info "Configuring Polkit agents, clipboard daemons, and application shortcuts..."
 
-# Global universal screenshot helper
+# Universal screenshot helper
 run_root tee /usr/local/bin/screenshot > /dev/null << 'EOF'
 #!/usr/bin/env bash
 mkdir -p "$HOME/Pictures/Screenshots"
@@ -422,23 +434,27 @@ run_root chmod +x /usr/local/bin/screenshot
 
 USER_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 
-# --- 1. Hyprland Configuration (New .lua Standard + .conf fallback) ---
+# --- 1. Hyprland Configuration (Lua Standard + Conf Fallback) ---
 HYPR_CONFIG_DIR="${USER_HOME}/.config/hypr"
 HYPR_LUA_FILE="${HYPR_CONFIG_DIR}/hyprland.lua"
 HYPR_CONF_FILE="${HYPR_CONFIG_DIR}/hyprland.conf"
 run_root mkdir -p "$HYPR_CONFIG_DIR"
 
 if [[ -f "$HYPR_LUA_FILE" ]] || [[ ! -f "$HYPR_CONF_FILE" ]]; then
-    if [[ ! -f "$HYPR_LUA_FILE" ]]; then
-        run_root touch "$HYPR_LUA_FILE"
-    fi
+    [[ ! -f "$HYPR_LUA_FILE" ]] && run_root touch "$HYPR_LUA_FILE"
     if ! grep -q "hyprpolkitagent" "$HYPR_LUA_FILE"; then
         cat << 'EOF' | run_root tee -a "$HYPR_LUA_FILE" > /dev/null
 
--- Autostart Daemons (Polkit & Clipboard)
+-- Autostart Both Polkit Agents (Guaranteed Authentication)
 hl.exec_cmd("/usr/lib/hyprpolkitagent/hyprpolkitagent")
+hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
+
+-- Clipboard Daemons
 hl.exec_cmd("wl-paste --type text --watch cliphist store")
 hl.exec_cmd("wl-paste --type image --watch cliphist store")
+
+-- Cursor Theme
+hl.exec_cmd("hyprctl setcursor Bibata-Modern-Classic 24")
 
 -- Shortcuts: Screenshots, Clipboard, Apps
 hl.bind("PRINT", hl.dsp.exec_cmd("/usr/local/bin/screenshot full"))
@@ -454,10 +470,14 @@ if [[ -f "$HYPR_CONF_FILE" ]]; then
     if ! grep -q "cliphist" "$HYPR_CONF_FILE"; then
         cat << 'EOF' | run_root tee -a "$HYPR_CONF_FILE" > /dev/null
 
-# Autostart Daemons
+# Autostart Both Polkit Agents (Guaranteed Authentication)
 exec-once = /usr/lib/hyprpolkitagent/hyprpolkitagent
+exec-once = /usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+
+# Clipboard Daemons & Cursor
 exec-once = wl-paste --type text --watch cliphist store
 exec-once = wl-paste --type image --watch cliphist store
+exec-once = hyprctl setcursor Bibata-Modern-Classic 24
 
 # Keybindings: Screenshots, Clipboard, Apps
 bind = , Print, exec, /usr/local/bin/screenshot full
@@ -481,10 +501,19 @@ fi
 if ! grep -q "cliphist" "$NIRI_CONFIG_FILE"; then
     cat << 'EOF' | run_root tee -a "$NIRI_CONFIG_FILE" > /dev/null
 
-// Autostart Daemons (Polkit & Clipboard)
+// Autostart Both Polkit Agents (Guaranteed Authentication)
 spawn-at-startup "/usr/lib/hyprpolkitagent/hyprpolkitagent"
+spawn-at-startup "/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1"
+
+// Clipboard Daemons
 spawn-at-startup "wl-paste" "--type" "text" "--watch" "cliphist" "store"
 spawn-at-startup "wl-paste" "--type" "image" "--watch" "cliphist" "store"
+
+// Cursor Configuration
+cursor {
+    xcursor-theme "Bibata-Modern-Classic"
+    xcursor-size 24
+}
 
 // Keybindings: Screenshots, Clipboard, Apps
 binds {
@@ -500,8 +529,10 @@ fi
 USER_GID=$(id -g "$TARGET_USER")
 run_root chown -R "${TARGET_USER}:${USER_GID}" "${USER_HOME}/.config"
 
-# Systemd User Unit fallback for Polkit
+# --- 3. Systemd User Units for Both Polkit Agents ---
 run_root mkdir -p /etc/systemd/user
+
+# Hyprpolkitagent service
 run_root tee /etc/systemd/user/hyprpolkitagent.service > /dev/null << 'EOF'
 [Unit]
 Description=Hyprland Polkit Authentication Agent
@@ -519,12 +550,43 @@ TimeoutStopSec=5sec
 WantedBy=graphical-session.target
 EOF
 
+# Polkit-GNOME service fallback
+run_root tee /etc/systemd/user/polkit-gnome-authentication-agent-1.service > /dev/null << 'EOF'
+[Unit]
+Description=GNOME Polkit Authentication Agent
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
+Restart=on-failure
+RestartSec=1
+TimeoutStopSec=5sec
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+
+# --- 4. XDG Autostart Desktop Entries for Both Agents ---
 run_root mkdir -p /etc/xdg/autostart
+
 run_root tee /etc/xdg/autostart/hyprpolkitagent.desktop > /dev/null << 'EOF'
 [Desktop Entry]
 Name=Hyprpolkitagent
 Comment=Hyprland Polkit Authentication Agent
 Exec=/usr/lib/hyprpolkitagent/hyprpolkitagent
+Terminal=false
+Type=Application
+Categories=System;
+NoDisplay=true
+EOF
+
+run_root tee /etc/xdg/autostart/polkit-gnome-authentication-agent-1.desktop > /dev/null << 'EOF'
+[Desktop Entry]
+Name=Polkit GNOME Authentication Agent
+Comment=PolicyKit Authentication Agent
+Exec=/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1
 Terminal=false
 Type=Application
 Categories=System;
@@ -570,11 +632,16 @@ EOF
 fi
 
 # -----------------------------------------------------------------------------
-# 9. AUR Application Packages
+# 9. AUR Packages (Bibata Cursors, Extra GTK Themes, Browsers)
 # -----------------------------------------------------------------------------
-log_info "Installing dotfiles & browser ecosystem..."
+log_info "Installing Bibata cursors, GTK themes & browser ecosystem..."
 
 EXTRA_PACKAGES=(
+    bibata-cursor-theme-bin
+    orchis-theme
+    nordic-theme
+    catppuccin-gtk-theme-mocha
+    dracula-gtk-theme
     msi-ec-dkms-git
     quickshell
     mpvpaper
@@ -663,9 +730,9 @@ EOF
 fi
 
 # -----------------------------------------------------------------------------
-# 12. ZRAM, Video Acceleration & Environment Variables
+# 12. ZRAM, Video Acceleration, Cursors & Environment Variables
 # -----------------------------------------------------------------------------
-log_info "Configuring ZRAM swap and video decode acceleration..."
+log_info "Configuring ZRAM swap, Bibata cursor defaults, and video acceleration..."
 
 run_root tee /etc/systemd/zram-generator.conf > /dev/null << 'EOF'
 [zram0]
@@ -676,6 +743,16 @@ EOF
 
 run_root systemctl enable systemd-oomd
 
+# Set system-wide default cursor to Bibata Modern Classic
+run_root mkdir -p /usr/share/icons/default
+run_root tee /usr/share/icons/default/index.theme > /dev/null << 'EOF'
+[Icon Theme]
+Name=Default
+Comment=Default Cursor Theme
+Inherits=Bibata-Modern-Classic
+EOF
+
+# System-wide Environment variables
 run_root tee /etc/environment > /dev/null << 'EOF'
 NIXOS_OZONE_WL=1
 ELECTRON_OZONE_PLATFORM_HINT=auto
@@ -684,7 +761,13 @@ GDK_BACKEND="wayland,x11,*"
 GSETTINGS_SCHEMA_DIR="/usr/share/glib-2.0/schemas/"
 LIBVA_DRIVER_NAME=iHD
 VDPAU_DRIVER=va_gl
+XCURSOR_THEME=Bibata-Modern-Classic
+XCURSOR_SIZE=24
 EOF
+
+# Configure user GSettings for cursor & fonts
+run_user gsettings set org.gnome.desktop.interface cursor-theme 'Bibata-Modern-Classic' 2>/dev/null || true
+run_user gsettings set org.gnome.desktop.interface cursor-size 24 2>/dev/null || true
 
 # -----------------------------------------------------------------------------
 # 13. Security Sysctl, DNS-over-TLS & First-Boot Firewall
@@ -850,6 +933,9 @@ log_success "================================================================="
 log_success " Bootstrap Complete on ${DISTRO_NAME}!"
 log_success " Configured Account: ${TARGET_USER}"
 log_success " SDDM Theme: Pixie (xCaptaiN09/pixie-sddm) Activated"
+log_success " Polkit Agents: hyprpolkitagent + polkit-gnome (Running & Autostarting)"
+log_success " Cursors: Bibata Modern Classic (System-wide default)"
+log_success " Themes: Adwaita, Orchis, Materia, Nordic, Catppuccin, Dracula"
 log_success " Compositor Configs:"
 log_success "   • Hyprland: Modern Lua API (hyprland.lua) & hyprland.conf"
 log_success "   • Niri: KDL Configuration (config.kdl)"
