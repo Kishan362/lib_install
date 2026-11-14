@@ -2,7 +2,7 @@
 # =============================================================================
 # Universal Arch Linux & CachyOS Bootstrap & Installer
 # Target Hardware: MSI Thin GF63 12VE (Alder Lake + RTX 4050/3050)
-# Desktop Ecosystem: Niri / Hyprland (Lua) + Pixie SDDM + Bibata + GTK Themes
+# Desktop Ecosystem: Niri / Hyprland (Lua) / COSMIC / None + Pixie SDDM + Bibata
 # =============================================================================
 set -euo pipefail
 
@@ -12,6 +12,7 @@ GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
 RED='\033[0;31m'
 NC='\033[0m'
 
@@ -133,16 +134,18 @@ fi
 
 echo ""
 echo -e "${BOLD}===================================================================${NC}"
-echo -e "${BOLD}       2. CHOOSE YOUR WAYLAND COMPOSITOR                           ${NC}"
+echo -e "${BOLD}       2. CHOOSE YOUR DESKTOP / COMPOSITOR                         ${NC}"
 echo -e "${BOLD}===================================================================${NC}"
-echo -e " 1) ${GREEN}Niri${NC}     - Scrollable-tiling Wayland compositor (43PR default)"
-echo -e " 2) ${BLUE}Hyprland${NC} - Dynamic tiling Wayland compositor (Lua Enabled)"
-echo -e " 3) ${YELLOW}Both${NC}     - Install both (switch anytime at SDDM login)"
+echo -e " 1) ${GREEN}Niri${NC}       - Scrollable-tiling Wayland compositor (43PR default)"
+echo -e " 2) ${BLUE}Hyprland${NC}   - Dynamic tiling Wayland compositor (Lua Enabled)"
+echo -e " 3) ${MAGENTA}COSMIC${NC}     - System76 Rust Desktop (Built-in keybinds & settings)"
+echo -e " 4) ${CYAN}Both Niri + Hyprland${NC}"
+echo -e " 5) ${YELLOW}None${NC}       - Minimal CLI / Headless (No GUI desktop or keybinds)"
 echo -e "${BOLD}===================================================================${NC}"
 
 COMP_CHOICE=""
-while [[ "$COMP_CHOICE" != "1" && "$COMP_CHOICE" != "2" && "$COMP_CHOICE" != "3" ]]; do
-    read -rp "Select compositor [1, 2, or 3] (Default: 2): " raw_c
+while [[ ! "$COMP_CHOICE" =~ ^[1-5]$ ]]; do
+    read -rp "Select desktop option [1-5] (Default: 2): " raw_c
     COMP_CHOICE="${raw_c:-2}"
 done
 
@@ -152,11 +155,12 @@ echo -e "${BOLD}       3. CHOOSE LAPTOP POWER & CPU MANAGEMENT ENGINE           
 echo -e "${BOLD}===================================================================${NC}"
 echo -e " 1) ${GREEN}auto-cpufreq + EnvyControl${NC} (Recommended for GF63 thermals)"
 echo -e " 2) ${BLUE}TLP + EnvyControl${NC}          (Maximum idle battery life)"
+echo -e " 3) ${YELLOW}None${NC}                       (Default kernel scaling, no daemons)"
 echo -e "${BOLD}===================================================================${NC}"
 
 POWER_CHOICE=""
-while [[ "$POWER_CHOICE" != "1" && "$POWER_CHOICE" != "2" ]]; do
-    read -rp "Select power engine [1 or 2] (Default: 1): " raw_p
+while [[ ! "$POWER_CHOICE" =~ ^[1-3]$ ]]; do
+    read -rp "Select power engine [1-3] (Default: 1): " raw_p
     POWER_CHOICE="${raw_p:-1}"
 done
 
@@ -166,12 +170,12 @@ echo -e "${BOLD}       4. MSI GF63 12VE BATTERY HEALTH THRESHOLD (msi-ec)       
 echo -e "${BOLD}===================================================================${NC}"
 echo -e " 1) ${GREEN}80% Limit${NC}  - Balanced (Recommended: preserves battery health)"
 echo -e " 2) ${BLUE}60% Limit${NC}  - Desk/Stationary mode (Maximum preservation)"
-echo -e " 3) ${YELLOW}100% Limit${NC} - Full charge capacity"
+echo -e " 3) ${YELLOW}None (100%)${NC} - Full charge capacity / No restriction"
 echo -e "${BOLD}===================================================================${NC}"
 
 BAT_CHOICE=""
-while [[ "$BAT_CHOICE" != "1" && "$BAT_CHOICE" != "2" && "$BAT_CHOICE" != "3" ]]; do
-    read -rp "Select battery threshold [1, 2, or 3] (Default: 1): " raw_b
+while [[ ! "$BAT_CHOICE" =~ ^[1-3]$ ]]; do
+    read -rp "Select battery threshold [1-3] (Default: 1): " raw_b
     BAT_CHOICE="${raw_b:-1}"
 done
 
@@ -186,11 +190,11 @@ echo -e "${BOLD}================================================================
 echo -e "${BOLD}       5. GAMING SUITE (STEAM, LUTRIS, WINE, GAMEMODE)             ${NC}"
 echo -e "${BOLD}===================================================================${NC}"
 echo -e " 1) ${GREEN}Install Gaming Stack${NC} (Steam, Lutris, GameMode, Gamescope, MangoHud)"
-echo -e " 2) ${BLUE}No Gaming Stack${NC}      (Keep install lightweight)"
+echo -e " 2) ${YELLOW}None / Skip${NC}          (Keep installation clean and lightweight)"
 echo -e "${BOLD}===================================================================${NC}"
 
 GAME_CHOICE=""
-while [[ "$GAME_CHOICE" != "1" && "$GAME_CHOICE" != "2" ]]; do
+while [[ ! "$GAME_CHOICE" =~ ^[1-2]$ ]]; do
     read -rp "Select option [1 or 2] (Default: 1): " raw_g
     GAME_CHOICE="${raw_g:-1}"
 done
@@ -301,14 +305,7 @@ else
 fi
 
 EXTRA_PACKAGES=(
-    bibata-cursor-theme-bin
-    arc-gtk-theme
-    nordic-theme
-    catppuccin-gtk-theme-mocha
-    dracula-gtk-theme
     msi-ec-dkms-git
-    quickshell
-    mpvpaper
     zen-browser-bin
     helium-browser-bin
     visual-studio-code-bin
@@ -345,7 +342,6 @@ OFFICIAL_PACKAGES=(
     # --- Screenshot & Clipboard Utilities ---
     grim
     slurp
-    hyprshot
     swappy
     cliphist
     wl-clipboard
@@ -356,10 +352,10 @@ OFFICIAL_PACKAGES=(
     # --- Audio & Bluetooth ---
     pipewire pipewire-audio pipewire-alsa pipewire-pulse pipewire-jack wireplumber lib32-pipewire rtkit bluez bluez-utils blueman pavucontrol pamixer playerctl
 
-    # --- Display Manager & Session Essentials (Qt6 dependencies for Pixie SDDM) ---
-    upower sddm qt6-wayland qt6-svg qt6-multimedia qt6-declarative qt6-5compat xdg-user-dirs xdg-utils
+    # --- Power & Session Basics ---
+    upower xdg-user-dirs xdg-utils
 
-    # --- Official Repository GTK Themes & Icon Suites ---
+    # --- GTK Desktop Integration & Themes ---
     adw-gtk-theme
     orchis-theme
     materia-gtk-theme
@@ -371,10 +367,10 @@ OFFICIAL_PACKAGES=(
     nwg-look
     zenity
 
-    # --- Desktop Integration ---
+    # --- Desktop File Management ---
     thunar thunar-volman tumbler gvfs gvfs-mtp gvfs-smb nautilus file-roller gnome-keyring libsecret seahorse
 
-    # --- CLI & 43PR Dotfiles Stack (includes awww daemon) ---
+    # --- CLI & 43PR Dotfiles Stack ---
     zsh zsh-completions zsh-autosuggestions zsh-syntax-highlighting starship eza cava matugen awww "${ROFI_PKG}" kitty fastfetch btop ncdu cmatrix jq glib2 gsettings-desktop-schemas imagemagick ffmpeg ffmpegthumbnailer mpv libnotify brightnessctl wf-recorder gammastep 7zip unzip unrar
 
     # --- Fonts ---
@@ -387,6 +383,23 @@ OFFICIAL_PACKAGES=(
     python python-pip uv nano
 )
 
+# Only add theme packages from AUR
+EXTRA_PACKAGES+=(
+    bibata-cursor-theme-bin
+    arc-gtk-theme
+    nordic-theme
+    catppuccin-gtk-theme-mocha
+    dracula-gtk-theme
+    quickshell
+    mpvpaper
+)
+
+# Add SDDM and Qt6 only if a desktop GUI is selected
+if [[ "$COMP_CHOICE" != "5" ]]; then
+    OFFICIAL_PACKAGES+=(sddm qt6-wayland qt6-svg qt6-multimedia qt6-declarative qt6-5compat)
+fi
+
+# NVIDIA driver module
 if ! pacman -Qq | grep -qE "^(nvidia|nvidia-dkms|nvidia-open|linux-cachyos-nvidia.*)$"; then
     if $IS_CACHYOS && pacman -Qq linux-cachyos &>/dev/null && pacman -Si linux-cachyos-nvidia &>/dev/null; then
         log_distro "Selecting precompiled CachyOS NVIDIA module (linux-cachyos-nvidia)..."
@@ -397,18 +410,27 @@ if ! pacman -Qq | grep -qE "^(nvidia|nvidia-dkms|nvidia-open|linux-cachyos-nvidi
     fi
 fi
 
-if [[ "$COMP_CHOICE" == "1" || "$COMP_CHOICE" == "3" ]]; then
-    OFFICIAL_PACKAGES+=(niri xwayland-satellite xdg-desktop-portal-gtk)
-fi
+# Desktop Selection Packages
+case "$COMP_CHOICE" in
+    1) # Niri
+        OFFICIAL_PACKAGES+=(niri xwayland-satellite xdg-desktop-portal-gtk)
+        ;;
+    2) # Hyprland
+        OFFICIAL_PACKAGES+=(hyprland hyprlock hypridle hyprshot xdg-desktop-portal-hyprland)
+        ;;
+    3) # COSMIC
+        log_info "Queuing COSMIC desktop environment..."
+        OFFICIAL_PACKAGES+=(cosmic-session cosmic-terminal cosmic-files xdg-desktop-portal-cosmic)
+        ;;
+    4) # Both Hyprland + Niri
+        OFFICIAL_PACKAGES+=(niri xwayland-satellite xdg-desktop-portal-gtk hyprland hyprlock hypridle hyprshot xdg-desktop-portal-hyprland)
+        ;;
+    5) # None
+        log_info "Desktop choice is None. Skipping GUI compositor packages."
+        ;;
+esac
 
-if [[ "$COMP_CHOICE" == "2" || "$COMP_CHOICE" == "3" ]]; then
-    OFFICIAL_PACKAGES+=(hyprland hyprlock hypridle xdg-desktop-portal-hyprland)
-fi
-
-if ! printf '%s\n' "${OFFICIAL_PACKAGES[@]}" | grep -q "^hyprlock$"; then
-    OFFICIAL_PACKAGES+=(hyprlock)
-fi
-
+# Gaming stack
 if [[ "$GAME_CHOICE" == "1" ]]; then
     log_info "Adding Steam, Lutris, and gaming libraries..."
     OFFICIAL_PACKAGES+=(
@@ -417,7 +439,7 @@ if [[ "$GAME_CHOICE" == "1" ]]; then
     )
 fi
 
-# AUTO-VALIDATION FILTER (Prevents missing-package aborts)
+# Auto-validation filter: verifies against repos; queues missing to AUR
 log_info "Validating packages against active repositories..."
 VALID_OFFICIAL_PACKAGES=()
 for pkg in "${OFFICIAL_PACKAGES[@]}"; do
@@ -433,10 +455,11 @@ log_info "Installing official repository packages..."
 run_root pacman -S --needed --noconfirm "${VALID_OFFICIAL_PACKAGES[@]}"
 
 # -----------------------------------------------------------------------------
-# 7. Autostart Daemons (awww-daemon, hyprpolkitagent) & Shortcuts
+# 7. Autostart Daemons & Keybindings (Hyprland / Niri Only; Skipped for COSMIC & None)
 # -----------------------------------------------------------------------------
-log_info "Configuring autostart daemons (awww-daemon, hyprpolkitagent) and keybindings..."
+USER_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
 
+# Global screenshot helper
 run_root tee /usr/local/bin/screenshot > /dev/null << 'EOF'
 #!/usr/bin/env bash
 mkdir -p "$HOME/Pictures/Screenshots"
@@ -458,18 +481,17 @@ fi
 EOF
 run_root chmod +x /usr/local/bin/screenshot
 
-USER_HOME=$(getent passwd "$TARGET_USER" | cut -d: -f6)
+if [[ "$COMP_CHOICE" == "2" || "$COMP_CHOICE" == "4" ]]; then
+    log_info "Configuring Hyprland shortcuts and autostart..."
+    HYPR_CONFIG_DIR="${USER_HOME}/.config/hypr"
+    HYPR_LUA_FILE="${HYPR_CONFIG_DIR}/hyprland.lua"
+    HYPR_CONF_FILE="${HYPR_CONFIG_DIR}/hyprland.conf"
+    run_root mkdir -p "$HYPR_CONFIG_DIR"
 
-# --- 1. Hyprland Configuration (Lua Standard + Conf Fallback) ---
-HYPR_CONFIG_DIR="${USER_HOME}/.config/hypr"
-HYPR_LUA_FILE="${HYPR_CONFIG_DIR}/hyprland.lua"
-HYPR_CONF_FILE="${HYPR_CONFIG_DIR}/hyprland.conf"
-run_root mkdir -p "$HYPR_CONFIG_DIR"
-
-if [[ -f "$HYPR_LUA_FILE" ]] || [[ ! -f "$HYPR_CONF_FILE" ]]; then
-    [[ ! -f "$HYPR_LUA_FILE" ]] && run_root touch "$HYPR_LUA_FILE"
-    if ! grep -q "awww-daemon" "$HYPR_LUA_FILE"; then
-        cat << 'EOF' | run_root tee -a "$HYPR_LUA_FILE" > /dev/null
+    if [[ -f "$HYPR_LUA_FILE" ]] || [[ ! -f "$HYPR_CONF_FILE" ]]; then
+        [[ ! -f "$HYPR_LUA_FILE" ]] && run_root touch "$HYPR_LUA_FILE"
+        if ! grep -q "awww-daemon" "$HYPR_LUA_FILE"; then
+            cat << 'EOF' | run_root tee -a "$HYPR_LUA_FILE" > /dev/null
 
 -- Autostart Daemons (Polkit, Wallpaper & Clipboard)
 hl.exec_cmd("/usr/lib/hyprpolkitagent/hyprpolkitagent")
@@ -486,12 +508,12 @@ hl.bind("SUPER + V", hl.dsp.exec_cmd("sh -c 'cliphist list | rofi -dmenu -p \"Cl
 hl.bind("SUPER + Z", hl.dsp.exec_cmd("zen-browser"))
 hl.bind("SUPER + N", hl.dsp.exec_cmd("sh -c 'protonvpn-app || protonvpn'"))
 EOF
+        fi
     fi
-fi
 
-if [[ -f "$HYPR_CONF_FILE" ]]; then
-    if ! grep -q "awww-daemon" "$HYPR_CONF_FILE"; then
-        cat << 'EOF' | run_root tee -a "$HYPR_CONF_FILE" > /dev/null
+    if [[ -f "$HYPR_CONF_FILE" ]]; then
+        if ! grep -q "awww-daemon" "$HYPR_CONF_FILE"; then
+            cat << 'EOF' | run_root tee -a "$HYPR_CONF_FILE" > /dev/null
 
 # Autostart Daemons
 exec-once = /usr/lib/hyprpolkitagent/hyprpolkitagent
@@ -508,20 +530,20 @@ bind = SUPER, V, exec, cliphist list | rofi -dmenu -p "Clipboard" | cliphist dec
 bind = SUPER, Z, exec, zen-browser
 bind = SUPER, N, exec, sh -c "protonvpn-app || protonvpn"
 EOF
+        fi
     fi
 fi
 
-# --- 2. Niri Configuration (KDL Format) ---
-NIRI_CONFIG_DIR="${USER_HOME}/.config/niri"
-NIRI_CONFIG_FILE="${NIRI_CONFIG_DIR}/config.kdl"
-run_root mkdir -p "$NIRI_CONFIG_DIR"
+if [[ "$COMP_CHOICE" == "1" || "$COMP_CHOICE" == "4" ]]; then
+    log_info "Configuring Niri shortcuts and autostart..."
+    NIRI_CONFIG_DIR="${USER_HOME}/.config/niri"
+    NIRI_CONFIG_FILE="${NIRI_CONFIG_DIR}/config.kdl"
+    run_root mkdir -p "$NIRI_CONFIG_DIR"
 
-if [[ ! -f "$NIRI_CONFIG_FILE" ]]; then
-    run_root touch "$NIRI_CONFIG_FILE"
-fi
+    [[ ! -f "$NIRI_CONFIG_FILE" ]] && run_root touch "$NIRI_CONFIG_FILE"
 
-if ! grep -q "awww-daemon" "$NIRI_CONFIG_FILE"; then
-    cat << 'EOF' | run_root tee -a "$NIRI_CONFIG_FILE" > /dev/null
+    if ! grep -q "awww-daemon" "$NIRI_CONFIG_FILE"; then
+        cat << 'EOF' | run_root tee -a "$NIRI_CONFIG_FILE" > /dev/null
 
 // Autostart Daemons (Polkit, Wallpaper & Clipboard)
 spawn-at-startup "/usr/lib/hyprpolkitagent/hyprpolkitagent"
@@ -545,12 +567,17 @@ binds {
     Mod+N { spawn "sh" "-c" "protonvpn-app || protonvpn"; }
 }
 EOF
+    fi
+fi
+
+if [[ "$COMP_CHOICE" == "3" ]]; then
+    log_info "COSMIC desktop selected: skipping manual keybinding injection (managed by COSMIC Settings)."
 fi
 
 USER_GID=$(id -g "$TARGET_USER")
 run_root chown -R "${TARGET_USER}:${USER_GID}" "${USER_HOME}/.config"
 
-# --- 3. Systemd User Units & Global Wants ---
+# Systemd User Units & Global Wants for Polkit
 run_root mkdir -p /etc/systemd/user /etc/systemd/user/graphical-session.target.wants
 
 run_root tee /etc/systemd/user/hyprpolkitagent.service > /dev/null << 'EOF'
@@ -570,7 +597,6 @@ TimeoutStopSec=5sec
 WantedBy=graphical-session.target
 EOF
 
-# Enable hyprpolkitagent at system-wide user level
 run_root ln -sf /etc/systemd/user/hyprpolkitagent.service /etc/systemd/user/graphical-session.target.wants/hyprpolkitagent.service
 
 run_root tee /etc/systemd/user/polkit-gnome-authentication-agent-1.service > /dev/null << 'EOF'
@@ -590,7 +616,7 @@ TimeoutStopSec=5sec
 WantedBy=graphical-session.target
 EOF
 
-# --- 4. XDG Autostart Desktop Entries ---
+# XDG Autostart Desktop Entries
 run_root mkdir -p /etc/xdg/autostart
 
 run_root tee /etc/xdg/autostart/hyprpolkitagent.desktop > /dev/null << 'EOF'
@@ -632,7 +658,7 @@ if [[ "$POWER_CHOICE" == "1" ]]; then
     smart_install "envycontrol"
     run_root systemctl unmask auto-cpufreq.service 2>/dev/null || true
     run_root systemctl enable auto-cpufreq.service
-else
+elif [[ "$POWER_CHOICE" == "2" ]]; then
     purge_conflict "auto-cpufreq.service" "auto-cpufreq"
     smart_install "tlp"
     smart_install "envycontrol"
@@ -651,12 +677,14 @@ CPU_MAX_PERF_ON_BAT=80
 EOF
     run_root systemctl unmask tlp.service 2>/dev/null || true
     run_root systemctl enable tlp.service
+else
+    log_info "Power management choice is None. Skipping TLP and auto-cpufreq."
 fi
 
 # -----------------------------------------------------------------------------
-# 9. AUR Packages (Bibata Cursors, Extra GTK Themes, Browsers)
+# 9. AUR Packages (Bibata Cursors, GTK Themes, Browsers)
 # -----------------------------------------------------------------------------
-log_info "Installing Bibata cursors, GTK themes & browser ecosystem from AUR..."
+log_info "Installing AUR packages and developer tools..."
 
 for pkg in "${EXTRA_PACKAGES[@]}"; do
     log_info "Processing: $pkg"
@@ -666,11 +694,12 @@ done
 # -----------------------------------------------------------------------------
 # 10. MSI GF63 Hardware Features & Battery Threshold
 # -----------------------------------------------------------------------------
-log_info "Configuring MSI EC module & battery charge threshold (${BATTERY_THRESHOLD}%)..."
+if [[ "$BAT_CHOICE" != "3" ]]; then
+    log_info "Configuring MSI EC module & battery charge threshold (${BATTERY_THRESHOLD}%)..."
 
-echo "msi-ec" | run_root tee /etc/modules-load.d/msi-ec.conf > /dev/null
+    echo "msi-ec" | run_root tee /etc/modules-load.d/msi-ec.conf > /dev/null
 
-run_root tee /etc/systemd/system/msi-battery-threshold.service > /dev/null << EOF
+    run_root tee /etc/systemd/system/msi-battery-threshold.service > /dev/null << EOF
 [Unit]
 Description=MSI GF63 Battery Charge Limit (${BATTERY_THRESHOLD}%)
 After=sys-devices-platform-msi\\x2dec.device
@@ -685,7 +714,10 @@ RemainAfterExit=yes
 WantedBy=multi-user.target
 EOF
 
-run_root systemctl enable msi-battery-threshold.service
+    run_root systemctl enable msi-battery-threshold.service
+else
+    log_info "Battery threshold is set to None (100% capacity). Skipping threshold daemon."
+fi
 
 # -----------------------------------------------------------------------------
 # 11. Early KMS & Initramfs Auto-Configuration
@@ -772,7 +804,6 @@ XCURSOR_THEME=Bibata-Modern-Classic
 XCURSOR_SIZE=24
 EOF
 
-# Configure user GSettings for cursor
 run_user gsettings set org.gnome.desktop.interface cursor-theme 'Bibata-Modern-Classic' 2>/dev/null || true
 run_user gsettings set org.gnome.desktop.interface cursor-size 24 2>/dev/null || true
 
@@ -835,25 +866,26 @@ run_root systemctl enable firewall-firstboot.service
 # -----------------------------------------------------------------------------
 # 14. SDDM Theme (Pixie SDDM), Wayland & NVIDIA Power Management
 # -----------------------------------------------------------------------------
-log_info "Installing and configuring Pixie SDDM theme (xCaptaiN09/pixie-sddm)..."
+if [[ "$COMP_CHOICE" != "5" ]]; then
+    log_info "Installing and configuring Pixie SDDM theme (xCaptaiN09/pixie-sddm)..."
 
-THEME_DIR="/usr/share/sddm/themes/pixie"
-run_root mkdir -p "/usr/share/sddm/themes"
+    THEME_DIR="/usr/share/sddm/themes/pixie"
+    run_root mkdir -p "/usr/share/sddm/themes"
 
-run_root rm -rf "$THEME_DIR" "/usr/share/sddm/pixie"
-if git clone --depth=1 https://github.com/xCaptaiN09/pixie-sddm.git "$THEME_DIR"; then
-    run_root ln -sf "$THEME_DIR" "/usr/share/sddm/pixie"
-    run_root chmod -R 755 "$THEME_DIR"
-    run_root chmod 755 /usr/share/sddm /usr/share/sddm/themes
-    log_success "Pixie SDDM theme installed with permissions (755)."
-else
-    log_warn "Failed to clone Pixie SDDM directly. Falling back to AUR..."
-    smart_install "pixie-sddm-git" || log_warn "Could not install pixie-sddm-git"
-    run_root chmod -R 755 "$THEME_DIR" 2>/dev/null || true
-fi
+    run_root rm -rf "$THEME_DIR" "/usr/share/sddm/pixie"
+    if git clone --depth=1 https://github.com/xCaptaiN09/pixie-sddm.git "$THEME_DIR"; then
+        run_root ln -sf "$THEME_DIR" "/usr/share/sddm/pixie"
+        run_root chmod -R 755 "$THEME_DIR"
+        run_root chmod 755 /usr/share/sddm /usr/share/sddm/themes
+        log_success "Pixie SDDM theme installed with permissions (755)."
+    else
+        log_warn "Failed to clone Pixie SDDM directly. Falling back to AUR..."
+        smart_install "pixie-sddm-git" || log_warn "Could not install pixie-sddm-git"
+        run_root chmod -R 755 "$THEME_DIR" 2>/dev/null || true
+    fi
 
-run_root mkdir -p /etc/sddm.conf.d
-run_root tee /etc/sddm.conf.d/wayland.conf > /dev/null << 'EOF'
+    run_root mkdir -p /etc/sddm.conf.d
+    run_root tee /etc/sddm.conf.d/wayland.conf > /dev/null << 'EOF'
 [General]
 DisplayServer=wayland
 GreeterEnvironment=QT_WAYLAND_SHELL_INTEGRATION=layer-shell
@@ -863,12 +895,13 @@ Current=pixie
 ThemeDir=/usr/share/sddm/themes
 EOF
 
-for pam_file in /etc/pam.d/login /etc/pam.d/sddm; do
-    if [[ -f "$pam_file" ]] && ! grep -q "pam_gnome_keyring.so" "$pam_file"; then
-        echo "auth     optional  pam_gnome_keyring.so" | run_root tee -a "$pam_file" > /dev/null
-        echo "session  optional  pam_gnome_keyring.so auto_start" | run_root tee -a "$pam_file" > /dev/null
-    fi
-done
+    for pam_file in /etc/pam.d/login /etc/pam.d/sddm; do
+        if [[ -f "$pam_file" ]] && ! grep -q "pam_gnome_keyring.so" "$pam_file"; then
+            echo "auth     optional  pam_gnome_keyring.so" | run_root tee -a "$pam_file" > /dev/null
+            echo "session  optional  pam_gnome_keyring.so auto_start" | run_root tee -a "$pam_file" > /dev/null
+        fi
+    done
+fi
 
 run_root tee /etc/modprobe.d/nvidia.conf > /dev/null << 'EOF'
 options nvidia_drm modeset=1 fbdev=1
@@ -898,7 +931,6 @@ SERVICES=(
     apparmor.service
     bluetooth.service
     upower.service
-    sddm.service
     rtkit-daemon.service
     udisks2.service
     nvidia-suspend.service
@@ -907,6 +939,11 @@ SERVICES=(
     fstrim.timer
     paccache.timer
 )
+
+# Only enable SDDM if a desktop was selected
+if [[ "$COMP_CHOICE" != "5" ]]; then
+    SERVICES+=(sddm.service)
+fi
 
 for service in "${SERVICES[@]}"; do
     run_root systemctl enable "$service" 2>/dev/null || log_warn "Could not enable $service"
@@ -941,23 +978,25 @@ run_root chmod 0440 /etc/sudoers.d/10-wheel
 log_success "================================================================="
 log_success " Bootstrap Complete on ${DISTRO_NAME}!"
 log_success " Configured Account: ${TARGET_USER}"
-log_success " SDDM Theme: Pixie (xCaptaiN09/pixie-sddm) Activated with 755 permissions"
-log_success " Polkit Agents: hyprpolkitagent + polkit-gnome (Enabled & Autostarting)"
-log_success " Wallpaper Daemon: awww-daemon configured in hyprland.lua & config.kdl"
-log_success " Cursors: Bibata Modern Classic (System-wide default)"
-log_success " Themes: Orchis, Materia, Adapta, Nordic, Catppuccin, Dracula, Arc"
-log_success " Compositor Configs:"
-log_success "   • Hyprland: Modern Lua API (hyprland.lua) & hyprland.conf"
-log_success "   • Niri: KDL Configuration (config.kdl)"
-log_success " Shortcuts & Clipboard Integration:"
-log_success "   • [PrintScreen]: Full-screen capture (Saved to ~/Pictures & Copied)"
-log_success "   • [Ctrl + PrintScreen]: Area selection (Saved to ~/Pictures & Copied)"
-log_success "   • [Mod + V]: Open Clipboard History (Cliphist + Rofi)"
-log_success "   • [Mod + Z]: Launch Zen Browser"
-log_success "   • [Mod + N]: Launch Proton VPN"
-log_success " Power Engine: $([ "$POWER_CHOICE" == "1" ] && echo "auto-cpufreq + EnvyControl" || echo "TLP + EnvyControl")"
-log_success " Battery Threshold: ${BATTERY_THRESHOLD}% (via msi-ec)"
-log_success " Gaming Suite: $([ "$GAME_CHOICE" == "1" ] && echo "Installed" || echo "Skipped")"
+log_success " Desktop Selected: $([ "$COMP_CHOICE" == "1" ] && echo "Niri" || ([ "$COMP_CHOICE" == "2" ] && echo "Hyprland (Lua)" || ([ "$COMP_CHOICE" == "3" ] && echo "COSMIC Desktop" || ([ "$COMP_CHOICE" == "4" ] && echo "Both (Hyprland + Niri)" || echo "None (CLI/Headless)"))))"
+if [[ "$COMP_CHOICE" != "5" ]]; then
+    log_success " SDDM Theme: Pixie (xCaptaiN09/pixie-sddm) Activated with 755 permissions"
+    log_success " Polkit Agents: hyprpolkitagent + polkit-gnome (Running & Autostarting)"
+    log_success " Wallpaper Daemon: awww-daemon configured in hyprland.lua & config.kdl"
+    log_success " Cursors: Bibata Modern Classic (System-wide default)"
+    log_success " Themes: Orchis, Materia, Adapta, Nordic, Catppuccin, Dracula, Arc"
+fi
+if [[ "$COMP_CHOICE" == "1" || "$COMP_CHOICE" == "2" || "$COMP_CHOICE" == "4" ]]; then
+    log_success " Shortcuts & Clipboard Integration:"
+    log_success "   • [PrintScreen]: Full-screen capture (Saved to ~/Pictures & Copied)"
+    log_success "   • [Ctrl + PrintScreen]: Area selection (Saved to ~/Pictures & Copied)"
+    log_success "   • [Mod + V]: Open Clipboard History (Cliphist + Rofi)"
+    log_success "   • [Mod + Z]: Launch Zen Browser"
+    log_success "   • [Mod + N]: Launch Proton VPN"
+fi
+log_success " Power Engine: $([ "$POWER_CHOICE" == "1" ] && echo "auto-cpufreq + EnvyControl" || ([ "$POWER_CHOICE" == "2" ] && echo "TLP + EnvyControl" || echo "None"))"
+log_success " Battery Threshold: $([ "$BAT_CHOICE" != "3" ] && echo "${BATTERY_THRESHOLD}% (via msi-ec)" || echo "None (100%)")"
+log_success " Gaming Suite: $([ "$GAME_CHOICE" == "1" ] && echo "Installed" || echo "None / Skipped")"
 log_success " Initramfs Engine: ${INITRAMFS_ENGINE}"
 log_success "================================================================="
 if $IS_CHROOT; then
